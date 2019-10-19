@@ -1,24 +1,36 @@
 package com.mai;
 
+import com.mai.exceptions.BracketsInsertException;
+import com.mai.exceptions.BracketsParseException;
+import com.mai.exceptions.ReadFileException;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
-import java.io.*;
-import java.util.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Optional;
 
 public class BracketsChecker {
 
-    public void start() throws IOException {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+    public void start() {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
+            while (true) {
+                Brackets brackets = fetchBrackets(reader);
+                String testString = fetchContentForTest(reader);
 
-        while (true) {
-            Brackets brackets = fetchBrackets(reader);
-            StringBuilder testString = fetchContentForTest(reader);
-
-            int error = checkBrackets(testString.toString(), brackets);
-            displayResult(error, testString, brackets);
+                int error = checkBrackets(testString, brackets);
+                displayResult(error, testString, brackets);
+            }
+        }
+        catch (IOException e) {
+            System.out.println("Console IO error.");
         }
     }
 
@@ -28,40 +40,29 @@ public class BracketsChecker {
             System.out.print("Enter filename with brackets (*.json): ");
             String filename = reader.readLine();
 
-            StringBuilder bracketsJsonString;
+            String bracketsJsonString;
             try {
                 bracketsJsonString = readFile(filename);
+                brackets = parseBracketsFromJson(bracketsJsonString);
             }
-            catch (IOException e) {
-                System.out.println("Error while reading file \"" + filename + "\".");
-                continue;
-            }
-
-            try {
-                brackets = parseBracketsFromJson(bracketsJsonString.toString());
-            }
-            catch (ParseException e) {
-                System.out.println("Error while parse brackets from \"" + filename + "\".");
-            }
-            catch (Exception e) {
-                System.out.println("Error while parse brackets from \"" + filename + "\": " + e.getMessage());
+            catch (ReadFileException|BracketsParseException e) {
+                System.out.println(e.getMessage());
             }
         }
 
         return brackets;
     }
 
-    private StringBuilder fetchContentForTest(BufferedReader reader) throws IOException {
-        StringBuilder testString = null;
+    private String fetchContentForTest(BufferedReader reader) throws IOException {
+        String testString = null;
         while (testString == null) {
             System.out.print("Enter filename for check brackets: ");
             String filename = reader.readLine();
-
             try {
                 testString = readFile(filename);
             }
-            catch (IOException e) {
-                System.out.println("Error while reading file \"" + filename + "\".");
+            catch (ReadFileException e) {
+                System.out.println(e.getMessage());
             }
         }
 
@@ -87,29 +88,36 @@ public class BracketsChecker {
         }
     }
 
-    private Brackets parseBracketsFromJson(String jsonString) throws ParseException, Exception {
-        Brackets brackets = new Brackets();
-        JSONArray root = (JSONArray) new JSONParser().parse(jsonString);
-        for (Object rootElem : root) {
-            JSONObject pair = (JSONObject) rootElem;
+    private Brackets parseBracketsFromJson(String jsonString) throws BracketsParseException {
+        try {
+            Brackets brackets = new Brackets();
+            JSONArray root = (JSONArray) new JSONParser().parse(jsonString);
+            for (Object elem : root) {
+                JSONObject pair = (JSONObject) elem;
 
-            String left = (String) pair.get("left");
-            String right = (String) pair.get("right");
-            brackets.addPair(left.charAt(0), right.charAt(0));
+                String left = (String) pair.get("left");
+                String right = (String) pair.get("right");
+                brackets.addPair(left.charAt(0), right.charAt(0));
+            }
+            return brackets;
         }
-        return brackets;
+        catch (ParseException|ClassCastException e) {
+            throw new BracketsParseException("Error while parse brackets (wrong json format).");
+        }
+        catch (BracketsInsertException e) {
+            throw new BracketsParseException("Error while parse brackets (found equals brackets).");
+        }
     }
 
-    private StringBuilder readFile(String filename) throws IOException {
-        BufferedReader reader = new BufferedReader(new FileReader(filename));
-        StringBuilder result = new StringBuilder();
-        while (reader.ready()) {
-            if (result.length() != 0)
-                result.append('\n');
-            result.append(reader.readLine());
+    private String readFile(String filename) throws ReadFileException {
+        try {
+            Optional<String> optional = Files.readAllLines(Paths.get(filename)).stream()
+                    .reduce((s1, s2) -> s1 + s2);
+            return optional.orElse("");
         }
-        reader.close();
-        return result;
+        catch (IOException e) {
+            throw new ReadFileException("Error while read file \"" + filename + "\".");
+        }
     }
 
     private int checkBrackets(String testingString, Brackets brackets) {

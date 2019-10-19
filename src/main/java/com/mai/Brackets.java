@@ -1,33 +1,29 @@
 package com.mai;
 
 
+import com.mai.exceptions.BracketsInsertException;
+
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 public class Brackets {
-    private Set<Character> leftBrackets = new HashSet<>(),
-                           rightBrackets = new HashSet<>();
     private Map<Character, Character> leftToRight = new HashMap<>();
 
-    public void addPair(char left, char right) throws Exception {
+    public void addPair(char left, char right) throws BracketsInsertException {
         if (left == right)
-            throw new Exception("Left and right brackets are equals.");
-        if (leftBrackets.contains(left) || rightBrackets.contains(right))
-            throw new Exception("Try add existing bracket.");
+            throw new BracketsInsertException("Left and right brackets are equals.");
+        if (leftToRight.containsKey(left) || leftToRight.containsValue(right))
+            throw new BracketsInsertException("Try add existing bracket.");
 
-        leftBrackets.add(left);
-        rightBrackets.add(right);
         leftToRight.put(left, right);
     }
 
     public boolean isLeftBracket(char bracket) {
-        return leftBrackets.contains(bracket);
+        return leftToRight.containsKey(bracket);
     }
 
     public boolean isRightBracket(char bracket) {
-        return rightBrackets.contains(bracket);
+        return leftToRight.containsValue(bracket);
     }
 
     public Character getRightByLeft(char leftBracket) {
